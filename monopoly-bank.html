@@ -432,19 +432,40 @@ const ASSET_DEFS = [
 const TOKENS = ['🎩','🐕','🚗','👞','🚢','🐈','⭐','🧵'];
 const landmarkImgCache = {}; // name -> url | null(gagal/belum ada)
 
-async function prefetchLandmarkImages(){
-  for(const def of ASSET_DEFS){
-    if(landmarkImgCache[def.name] !== undefined) continue;
-    try{
-      const res = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(def.wiki));
-      if(!res.ok) throw new Error('not ok');
-      const data = await res.json();
-      landmarkImgCache[def.name] = (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null;
-    }catch(e){
-      landmarkImgCache[def.name] = null;
-    }
-    if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
-  }
+/* Fetch gambar landmark: 2 lapis (REST summary -> action API pageimages) + timeout, jalan paralel & non-blocking */
+function fetchWithTimeout(url, ms){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, {signal: ctrl.signal}).finally(() => clearTimeout(timer));
+}
+function tryRestSummary(title){
+  return fetchWithTimeout('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title), 6000)
+    .then(res => res.ok ? res.json() : Promise.reject(new Error('rest not ok')))
+    .then(data => (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null);
+}
+function tryPageImagesApi(title){
+  const url = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(title) +
+              '&prop=pageimages&format=json&pithumbsize=300&origin=*';
+  return fetchWithTimeout(url, 6000)
+    .then(res => res.ok ? res.json() : Promise.reject(new Error('api not ok')))
+    .then(data => {
+      const pages = data.query && data.query.pages;
+      if(!pages) return null;
+      const page = Object.values(pages)[0];
+      return (page && page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null;
+    });
+}
+function prefetchLandmarkImages(){
+  ASSET_DEFS.forEach(def => {
+    if(landmarkImgCache[def.name] !== undefined) return; // sudah ada/pernah dicoba
+    tryRestSummary(def.wiki)
+      .catch(() => tryPageImagesApi(def.wiki))
+      .catch(() => null)
+      .then(url => {
+        landmarkImgCache[def.name] = url || null;
+        if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
+      });
+  });
 }
 function assetIconHtml(a){
   const url = landmarkImgCache[a.name];
@@ -452,66 +473,153 @@ function assetIconHtml(a){
   return a.icon;
 }
 
-/* ================= STATE ================= */
+/* ================= STATE LOKAL =================
+   Struktur di server dipecah jadi beberapa cabang biar hemat data:
+   rooms/{code}/meta     -> pengaturan game (jarang berubah)
+   rooms/{code}/players  -> saldo pemain (sering berubah)
+   rooms/{code}/assets   -> kepemilikan aset (kadang berubah)
+   rooms/{code}/history  -> log transaksi (list append-only, diambil on-demand)
+   State lokal tetap 1 objek datar biar kode render gak perlu berubah banyak. */
 let state = null;
-let joinFoundState = null;
-let roomRefActive = null;
+let joinFoundState = null; // {code, players} - preview ringan sebelum join
+let tempSetupPlayers = [];
+let tempNextId = 1;
 
 function freshState(){
   return {
-    roomCode: '',
-    players: [],
-    potEnabled: false,
-    pot: 0,
-    currency: 'Rp',
-    goSalary: 200,
-    startBalance: 1500,
-    history: [],
+    roomCode: '', players: [], potEnabled: false, pot: 0, currency: 'Rp',
+    goSalary: 200, startBalance: 1500,
     assets: ASSET_DEFS.map((a, i) => ({id:i, name:a.name, icon:a.icon, price:a.price, owner:null})),
-    nextId: 1,
-    updatedAt: 0
+    nextId: 1, updatedAt: 0
   };
 }
+function hydrateState(code, room){
+  const meta = room.meta || {};
+  return {
+    roomCode: code,
+    players: room.players || [],
+    assets: room.assets || ASSET_DEFS.map((a,i) => ({id:i, name:a.name, icon:a.icon, price:a.price, owner:null})),
+    potEnabled: !!meta.potEnabled,
+    pot: meta.pot || 0,
+    currency: meta.currency || 'Rp',
+    goSalary: meta.goSalary || 200,
+    startBalance: meta.startBalance || 1500,
+    nextId: meta.nextId || 1,
+    updatedAt: meta.updatedAt || 0
+  };
+}
+function genRoomCode(){ return String(Math.floor(1000 + Math.random()*9000)); }
 
-/* ================= FIREBASE SYNC ================= */
-async function saveState(){
-  state.updatedAt = Date.now();
-  setConnStatus(true);
+/* ================= FIREBASE: WRITE (tertarget per cabang, hindari kirim data yang gak perlu) ================= */
+async function createRoomOnServer(s){
+  const meta = {
+    currency: s.currency, goSalary: s.goSalary, startBalance: s.startBalance,
+    potEnabled: s.potEnabled, pot: s.pot, nextId: s.nextId, updatedAt: s.updatedAt
+  };
   try{
-    await db.ref('rooms/' + state.roomCode).set(state);
+    await db.ref('rooms/' + s.roomCode).set({ meta, players: s.players, assets: s.assets });
+    pushHistory(s.roomCode, s.currency, 'Sesi dibuat', s.players.map(p => p.name).join(', '));
+    setConnStatus(true);
   }catch(e){
-    console.error('Gagal simpan:', e);
+    console.error('Gagal membuat sesi:', e);
+    showToast('⚠️ Gagal simpan sesi ke server, cek koneksi');
+    setConnStatus(false);
+  }
+}
+async function savePlayers(){
+  try{
+    await db.ref('rooms/' + state.roomCode + '/players').set(state.players);
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal simpan pemain:', e);
     showToast('⚠️ Gagal sinkron ke server');
     setConnStatus(false);
   }
 }
-async function fetchRemote(code){
+async function saveAssets(){
   try{
-    const snap = await db.ref('rooms/' + code).once('value');
-    return snap.exists() ? snap.val() : null;
+    await db.ref('rooms/' + state.roomCode + '/assets').set(state.assets);
+    setConnStatus(true);
   }catch(e){
-    console.error('Gagal ambil data:', e);
-    return null;
+    console.error('Gagal simpan aset:', e);
+    showToast('⚠️ Gagal sinkron ke server');
+    setConnStatus(false);
   }
 }
+async function saveMeta(){
+  state.updatedAt = Date.now();
+  try{
+    await db.ref('rooms/' + state.roomCode + '/meta').update({
+      pot: state.pot, potEnabled: state.potEnabled, currency: state.currency,
+      goSalary: state.goSalary, startBalance: state.startBalance, nextId: state.nextId,
+      updatedAt: state.updatedAt
+    });
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal simpan meta:', e);
+    showToast('⚠️ Gagal sinkron ke server');
+    setConnStatus(false);
+  }
+}
+function pushHistory(roomCode, currency, text, sub){
+  // fire-and-forget: gak perlu ditunggu, dan gak ikut nge-bloat payload state utama
+  db.ref('rooms/' + roomCode + '/history').push({text, sub, ts: new Date().toISOString()})
+    .catch(e => console.error('Gagal simpan riwayat:', e));
+}
+
+/* ================= FIREBASE: LISTENER (dipecah per cabang biar gak re-render/re-transmit yang gak perlu) ================= */
+let metaRef = null, playersRef = null, assetsRef = null;
+let lastPlayersJson = null, lastAssetsJson = null;
+
 function subscribeRoom(){
   unsubscribeRoom();
-  roomRefActive = db.ref('rooms/' + state.roomCode);
-  roomRefActive.on('value', (snap) => {
+  const code = state.roomCode;
+
+  metaRef = db.ref('rooms/' + code + '/meta');
+  metaRef.on('value', snap => {
     setConnStatus(true);
     if(!snap.exists()) return;
-    const remote = snap.val();
-    if(remote.updatedAt !== state.updatedAt){
-      state = remote;
-      renderGame();
-    }
-  }, (err) => {
-    console.error('Listener error:', err);
-    setConnStatus(false);
-  });
+    const meta = snap.val();
+    if(meta.updatedAt === state.updatedAt) return; // data sama persis (gema tulisan sendiri) -> skip render
+    state.potEnabled = !!meta.potEnabled;
+    state.pot = meta.pot || 0;
+    state.currency = meta.currency || 'Rp';
+    state.goSalary = meta.goSalary || 200;
+    state.startBalance = meta.startBalance || 1500;
+    state.nextId = meta.nextId || state.nextId;
+    state.updatedAt = meta.updatedAt || state.updatedAt;
+    renderMetaUI();
+  }, err => { console.error('Meta listener error:', err); setConnStatus(false); });
+
+  playersRef = db.ref('rooms/' + code + '/players');
+  playersRef.on('value', snap => {
+    setConnStatus(true);
+    const val = snap.val() || [];
+    const json = JSON.stringify(val);
+    if(json === lastPlayersJson) return; // persis sama kayak yang barusan kita tulis -> skip render
+    lastPlayersJson = json;
+    state.players = val;
+    renderPlayerListUI();
+  }, err => { console.error('Players listener error:', err); setConnStatus(false); });
+
+  assetsRef = db.ref('rooms/' + code + '/assets');
+  assetsRef.on('value', snap => {
+    setConnStatus(true);
+    if(!snap.exists()) return;
+    const val = snap.val();
+    const json = JSON.stringify(val);
+    if(json === lastAssetsJson) return;
+    lastAssetsJson = json;
+    state.assets = val;
+    if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
+  }, err => { console.error('Assets listener error:', err); setConnStatus(false); });
 }
 function unsubscribeRoom(){
-  if(roomRefActive){ roomRefActive.off(); roomRefActive = null; }
+  if(metaRef){ metaRef.off(); metaRef = null; }
+  if(playersRef){ playersRef.off(); playersRef = null; }
+  if(assetsRef){ assetsRef.off(); assetsRef = null; }
+  lastPlayersJson = null;
+  lastAssetsJson = null;
 }
 function setConnStatus(ok){
   const dot = document.getElementById('connDot');
@@ -520,7 +628,6 @@ function setConnStatus(ok){
   dot.classList.toggle('off', !ok);
   lbl.textContent = ok ? 'Tersambung' : 'Terputus — cek internet';
 }
-function genRoomCode(){ return String(Math.floor(1000 + Math.random()*9000)); }
 
 /* ================= SCREEN NAV ================= */
 function showScreen(id){
@@ -542,12 +649,22 @@ async function checkJoinCode(){
   const btn = document.getElementById('joinBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Mencari...';
-  const remote = await fetchRemote(code);
+
+  let found = false, players = [];
+  try{
+    const metaSnap = await db.ref('rooms/' + code + '/meta').once('value');
+    if(metaSnap.exists()){
+      found = true;
+      const playersSnap = await db.ref('rooms/' + code + '/players').once('value');
+      players = playersSnap.val() || [];
+    }
+  }catch(e){ console.error('Gagal cek kode:', e); }
+
   btn.disabled = false;
   btn.textContent = 'Cek Kode';
-  if(!remote){ showToast('Kode tidak ketemu, cek lagi'); return; }
-  joinFoundState = remote;
-  document.getElementById('joinFoundInfo').textContent = 'Sesi ditemukan · ' + remote.players.length + ' pemain udah gabung';
+  if(!found){ showToast('Kode tidak ketemu, cek lagi'); return; }
+  joinFoundState = { code, players };
+  document.getElementById('joinFoundInfo').textContent = 'Sesi ditemukan · ' + players.length + ' pemain udah gabung';
   renderJoinTokenPick();
   document.getElementById('joinStep1').style.display = 'none';
   document.getElementById('joinStep2').style.display = 'block';
@@ -573,36 +690,30 @@ async function doJoinAsPlayer(){
   const name = document.getElementById('joinName').value.trim();
   if(!name){ showToast('Isi nama kamu dulu'); return; }
   const token = document.getElementById('joinTokenPick')._getPicked();
-  const code = joinFoundState.roomCode;
+  const code = joinFoundState.code;
   const btn = document.getElementById('joinConfirmBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Bergabung...';
 
-  let addedPlayer = null;
-  let aborted = false;
+  let addedPlayer = null, aborted = false;
   try{
     const result = await db.ref('rooms/' + code).transaction(current => {
       if(!current) return current;
       current.players = current.players || [];
       if(current.players.length >= 8){ aborted = true; return; }
-      const newId = current.nextId || 1;
-      addedPlayer = {id:newId, name, token, balance: current.startBalance || 1500};
+      current.meta = current.meta || {};
+      const newId = current.meta.nextId || 1;
+      addedPlayer = {id:newId, name, token, balance: current.meta.startBalance || 1500};
       current.players.push(addedPlayer);
-      current.nextId = newId + 1;
-      current.history = current.history || [];
-      current.history.unshift({
-        text: 'Bank → ' + name,
-        sub: (current.currency || 'Rp') + Number(addedPlayer.balance).toLocaleString('id-ID') + ' · Gabung permainan',
-        ts: new Date().toISOString()
-      });
-      current.updatedAt = Date.now();
+      current.meta.nextId = newId + 1;
+      current.meta.updatedAt = Date.now();
       return current;
     });
     btn.disabled = false;
     btn.textContent = 'Gabung sebagai Pemain';
     if(aborted){ showToast('Sesi sudah penuh (maks 8 pemain)'); return; }
     if(!result.committed || !result.snapshot.exists()){ showToast('Gagal gabung, coba lagi'); return; }
-    state = result.snapshot.val();
+    state = hydrateState(code, result.snapshot.val());
   }catch(e){
     console.error('Gagal gabung:', e);
     btn.disabled = false;
@@ -610,13 +721,13 @@ async function doJoinAsPlayer(){
     showToast('Gagal gabung, cek koneksi');
     return;
   }
+  lastPlayersJson = JSON.stringify(state.players); // biar listener gak render ulang pas gema balik
+  pushHistory(code, state.currency, 'Bank → ' + name, fmt(addedPlayer.balance) + ' · Gabung permainan');
   enterGameScreen();
   showToast('Berhasil gabung sebagai ' + name, true);
 }
 
 /* ================= SETUP FLOW (buat baru) ================= */
-let tempSetupPlayers = [];
-let tempNextId = 1;
 function renderSetupPlayers(){
   const wrap = document.getElementById('setupPlayerList');
   wrap.innerHTML = '';
@@ -652,13 +763,11 @@ function removeSetupPlayer(id){
 function togglePot(){
   document.getElementById('potToggle').classList.toggle('on');
 }
-async function startGame(){
+
+/* Buat sesi: LANGSUNG masuk ke game (gak nunggu server), simpan ke Firebase di background */
+function startGame(){
   if(tempSetupPlayers.length < 1){ showToast('Isi minimal nama kamu dulu'); return; }
   if(tempSetupPlayers.some(p => !p.name.trim())){ showToast('Isi semua nama pemain dulu'); return; }
-
-  const btn = document.getElementById('startBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Membuat sesi...';
 
   state = freshState();
   state.roomCode = genRoomCode();
@@ -668,24 +777,22 @@ async function startGame(){
   state.currency = (document.getElementById('currencySymbol').value || 'Rp').trim() || 'Rp';
   state.potEnabled = document.getElementById('potToggle').classList.contains('on');
   state.players = tempSetupPlayers.map(p => ({id: state.nextId++, name: p.name, token: p.token, balance: startBal}));
+  state.updatedAt = Date.now();
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
 
-  await saveState();
-  btn.disabled = false;
-  btn.textContent = 'Buat & Mulai';
   enterGameScreen();
   showToast('Sesi dibuat! Bagikan kodenya ke temen', true);
+  createRoomOnServer(state); // fire-and-forget, gak diblok UI
 }
 
 /* ================= ENTER GAME ================= */
 function enterGameScreen(){
   ['landingScreen','joinScreen','setupScreen'].forEach(s => document.getElementById(s).style.display = 'none');
   document.getElementById('gameScreen').style.display = 'flex';
-  document.getElementById('currLabelT').textContent = state.currency;
-  document.getElementById('codeChip').textContent = '#' + state.roomCode;
-  document.getElementById('menuCode').textContent = state.roomCode;
   renderGame();
   subscribeRoom();
-  prefetchLandmarkImages();
+  prefetchLandmarkImages(); // paralel, non-blocking, gambar muncul bertahap
 }
 function copyRoomCode(){
   const code = state.roomCode;
@@ -696,41 +803,46 @@ function copyRoomCode(){
   }
 }
 
-/* ================= RENDER GAME ================= */
+/* ================= RENDER (dipecah: meta vs player list, biar gak render semua tiap ada 1 perubahan) ================= */
 function fmt(n){
   const neg = n < 0;
   const abs = Math.abs(n).toLocaleString('id-ID');
   return (neg ? '-' : '') + state.currency + abs;
 }
-function renderGame(){
-  document.getElementById('playerCountLabel').textContent = state.players.length + ' pemain';
+function renderMetaUI(){
   document.getElementById('codeChip').textContent = '#' + state.roomCode;
   document.getElementById('menuCode').textContent = state.roomCode;
-
+  document.getElementById('currLabelT').textContent = state.currency;
   document.getElementById('potRow').style.display = state.potEnabled ? 'flex' : 'none';
   document.getElementById('potAmount').textContent = fmt(state.pot);
-
+}
+function renderPlayerListUI(){
+  document.getElementById('playerCountLabel').textContent = state.players.length + ' pemain';
   const list = document.getElementById('playerList');
   if(state.players.length === 0){
     list.innerHTML = '<div class="empty-hint">Belum ada pemain.</div>';
-  } else {
-    list.innerHTML = '';
-    state.players.forEach(p => {
-      const card = document.createElement('div');
-      card.className = 'player-card' + (p.balance < 0 ? ' debt' : '');
-      card.innerHTML = `
-        <div class="player-info">
-          <div class="token">${p.token}</div>
-          <div style="min-width:0;">
-            <div class="player-name">${escapeHtml(p.name)}</div>
-            ${p.balance < 0 ? '<span class="debt-badge">DEFISIT</span>' : '<div class="player-tag">Saldo aktif</div>'}
-          </div>
-        </div>
-        <div class="player-balance mono" id="bal-${p.id}">${fmt(p.balance)}</div>
-      `;
-      list.appendChild(card);
-    });
+    return;
   }
+  list.innerHTML = '';
+  state.players.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'player-card' + (p.balance < 0 ? ' debt' : '');
+    card.innerHTML = `
+      <div class="player-info">
+        <div class="token">${p.token}</div>
+        <div style="min-width:0;">
+          <div class="player-name">${escapeHtml(p.name)}</div>
+          ${p.balance < 0 ? '<span class="debt-badge">DEFISIT</span>' : '<div class="player-tag">Saldo aktif</div>'}
+        </div>
+      </div>
+      <div class="player-balance mono" id="bal-${p.id}">${fmt(p.balance)}</div>
+    `;
+    list.appendChild(card);
+  });
+}
+function renderGame(){
+  renderMetaUI();
+  renderPlayerListUI();
   if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
 }
 function flipBalance(id){
@@ -814,14 +926,18 @@ async function doTransfer(){
 
   const fromName = fromP ? fromP.name : 'Bank';
   const toName = toP ? toP.name : 'Bank';
-  addHistory(`${fromName} → ${toName}`, fmt(amount) + (note ? ' · ' + note : ''));
+  pushHistory(state.roomCode, state.currency, `${fromName} → ${toName}`, fmt(amount) + (note ? ' · ' + note : ''));
 
   if(fromP) flipBalance(fromP.id);
   if(toP) flipBalance(toP.id);
-  renderGame();
-  await saveState();
+  lastPlayersJson = JSON.stringify(state.players);
+  renderPlayerListUI();
   closeOverlay('transferOverlay');
   showToast('Transfer berhasil', true);
+
+  const writes = [savePlayers()];
+  if(toPot) writes.push(saveMeta()); // meta cuma ditulis kalau pot beneran berubah
+  await Promise.all(writes);
 }
 
 /* ================= GO SALARY ================= */
@@ -845,12 +961,13 @@ async function doGoSalaryFor(id){
   const p = state.players.find(p => p.id === id);
   if(!p) return;
   p.balance += state.goSalary;
-  addHistory('Bank → ' + p.name, fmt(state.goSalary) + ' · Lewat GO');
+  pushHistory(state.roomCode, state.currency, 'Bank → ' + p.name, fmt(state.goSalary) + ' · Lewat GO');
   flipBalance(p.id);
-  renderGame();
-  await saveState();
+  lastPlayersJson = JSON.stringify(state.players);
+  renderPlayerListUI();
   closeOverlay('goOverlay');
   showToast(p.name + ' dapat gaji GO', true);
+  await savePlayers();
 }
 
 /* ================= ASSET MARKET ================= */
@@ -908,13 +1025,15 @@ async function doBuyAsset(assetId, playerId){
   if(!asset || !p || asset.owner) return;
   p.balance -= asset.price;
   asset.owner = playerId;
-  addHistory(p.name + ' beli ' + asset.icon + ' ' + asset.name, fmt(asset.price));
+  pushHistory(state.roomCode, state.currency, p.name + ' beli ' + asset.icon + ' ' + asset.name, fmt(asset.price));
   flipBalance(p.id);
-  renderGame();
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
+  renderPlayerListUI();
   renderAssetList();
-  await saveState();
   closeOverlay('buyAssetOverlay');
   showToast(p.name + ' beli ' + asset.name, true);
+  await Promise.all([savePlayers(), saveAssets()]);
 }
 async function trySellAsset(assetId){
   const asset = state.assets.find(a => a.id === assetId);
@@ -924,12 +1043,14 @@ async function trySellAsset(assetId){
   if(!ok) return;
   owner.balance += asset.price;
   asset.owner = null;
-  addHistory(owner.name + ' jual ' + asset.icon + ' ' + asset.name + ' ke Bank', fmt(asset.price));
+  pushHistory(state.roomCode, state.currency, owner.name + ' jual ' + asset.icon + ' ' + asset.name + ' ke Bank', fmt(asset.price));
   flipBalance(owner.id);
-  renderGame();
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
+  renderPlayerListUI();
   renderAssetList();
-  await saveState();
   showToast('Aset dijual balik ke Bank', true);
+  await Promise.all([savePlayers(), saveAssets()]);
 }
 
 /* ================= ADD PLAYER MID GAME (host) ================= */
@@ -967,51 +1088,58 @@ async function doAddPlayerMidGame(){
       if(!current) return current;
       current.players = current.players || [];
       if(current.players.length >= 8){ aborted = true; return; }
-      const newId = current.nextId || 1;
+      current.meta = current.meta || {};
+      const newId = current.meta.nextId || 1;
       current.players.push({id:newId, name, token, balance});
-      current.nextId = newId + 1;
-      current.history = current.history || [];
-      current.history.unshift({
-        text: 'Bank → ' + name,
-        sub: (current.currency || 'Rp') + Number(balance).toLocaleString('id-ID') + ' · Gabung permainan',
-        ts: new Date().toISOString()
-      });
-      current.updatedAt = Date.now();
+      current.meta.nextId = newId + 1;
+      current.meta.updatedAt = Date.now();
       return current;
     });
     if(aborted){ showToast('Maksimal 8 pemain'); return; }
     if(!result.committed || !result.snapshot.exists()){ showToast('Gagal tambah pemain, coba lagi'); return; }
-    state = result.snapshot.val();
+    const room = result.snapshot.val();
+    state.players = room.players || [];
+    state.nextId = (room.meta && room.meta.nextId) || state.nextId;
+    state.updatedAt = (room.meta && room.meta.updatedAt) || state.updatedAt;
+    lastPlayersJson = JSON.stringify(state.players);
   }catch(e){
     console.error('Gagal tambah pemain:', e);
     showToast('Gagal tambah pemain, cek koneksi');
     return;
   }
-  renderGame();
+  pushHistory(code, state.currency, 'Bank → ' + name, fmt(balance) + ' · Gabung permainan');
+  renderPlayerListUI();
   closeOverlay('addPlayerOverlay');
   showToast(name + ' bergabung', true);
 }
 
-/* ================= HISTORY ================= */
-function addHistory(text, sub){
-  state.history.unshift({text, sub, ts: new Date().toISOString()});
-  if(state.history.length > 200) state.history.pop();
-}
-function openHistory(){
+/* ================= HISTORY (diambil on-demand pas drawer dibuka, gak disinkron terus-terusan) ================= */
+async function openHistory(){
   const wrap = document.getElementById('historyList');
-  wrap.innerHTML = '';
-  if(state.history.length === 0){
-    wrap.innerHTML = '<div class="empty-hint">Belum ada transaksi.</div>';
-  } else {
-    state.history.forEach(h => {
+  wrap.innerHTML = '<div class="empty-hint">Memuat riwayat...</div>';
+  openOverlay('historyOverlay');
+  if(!state || !state.roomCode) return;
+  try{
+    const snap = await db.ref('rooms/' + state.roomCode + '/history').limitToLast(50).once('value');
+    const entries = [];
+    snap.forEach(child => { entries.push(child.val()); });
+    entries.reverse();
+    if(entries.length === 0){
+      wrap.innerHTML = '<div class="empty-hint">Belum ada transaksi.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    entries.forEach(h => {
       const t = document.createElement('div');
       t.className = 'ticket';
       const time = new Date(h.ts).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
       t.innerHTML = `<div class="row1"><span>${escapeHtml(h.text)}</span><span>${time}</span></div><div class="row2">${escapeHtml(h.sub)}</div>`;
       wrap.appendChild(t);
     });
+  }catch(e){
+    console.error('Gagal ambil riwayat:', e);
+    wrap.innerHTML = '<div class="empty-hint">Gagal memuat riwayat, cek koneksi.</div>';
   }
-  openOverlay('historyOverlay');
 }
 
 /* ================= RESET ================= */
@@ -1045,7 +1173,6 @@ function showToast(msg){
 
 /* ================= INIT ================= */
 addSetupPlayer();
-renderSetupPlayers();
 </script>
 </body>
 </html>
