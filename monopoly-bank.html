@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Buku Kas — Bank Monopoli</title>
+<style>
+  :root{
+    --felt:#0F3D2E;
+    --felt-dark:#0A2C21;
+    --paper:#F4ECD8;
+    --paper-dark:#E8DCBE;
+    --ink:#1F2A24;
+    --ink-soft:#4B5A50;
+    --ink-faint:#7C8B80;
+    --gold:#B8912F;
+    --gold-dark:#8C6E22;
+    --gold-light:#D9B85C;
+    --red:#A63D2F;
+    --green-ok:#2F7A4F;
+    --line:#C9BB94;
+    --shadow-sm:0 1px 2px rgba(15,61,46,0.08);
+    --shadow-md:0 3px 10px rgba(15,61,46,0.12);
+    --shadow-lg:0 -4px 24px rgba(0,0,0,0.28);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--felt);
+    background-image:
+      radial-gradient(circle at 50% -10%, #154A38 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    min-height:100%;
+    display:flex;flex-direction:column;
+    overscroll-behavior:none;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"Courier New",ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;}
+  .stamp{font-family:Georgia,"Times New Roman",serif;text-transform:uppercase;letter-spacing:0.12em;font-weight:700;}
+  button{cursor:pointer;transition:opacity 0.12s ease, transform 0.08s ease;}
+  button:active{transform:scale(0.97);opacity:0.9;}
+
+  header{padding:16px 18px 12px;display:flex;align-items:center;justify-content:space-between;color:var(--paper);gap:8px;}
+  header .title{font-size:15px;min-width:0;letter-spacing:0.1em;}
+  header .title small{display:block;font-size:9px;letter-spacing:0.18em;opacity:0.55;font-family:-apple-system,sans-serif;text-transform:none;font-weight:500;margin-top:3px;}
+  header .btns{display:flex;gap:8px;flex:none;}
+  header .icon-btn{background:rgba(255,255,255,0.04);border:1.5px solid rgba(244,236,216,0.35);color:var(--paper);width:37px;height:37px;border-radius:50%;font-size:15px;display:flex;align-items:center;justify-content:center;}
+  .code-chip{background:rgba(184,145,47,0.22);border:1px solid rgba(184,145,47,0.6);color:var(--gold-light);font-size:11px;padding:5px 12px;border-radius:14px;font-family:"Courier New",monospace;letter-spacing:0.07em;flex:none;font-weight:700;}
+
+  main{flex:1;background:var(--paper);border-radius:22px 22px 0 0;box-shadow:var(--shadow-lg);padding:18px 15px 104px;overflow-y:auto;}
+
+  .pot-row{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,var(--paper-dark),#DED0AC);border:1px dashed var(--gold-dark);border-radius:12px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow-sm);}
+  .pot-row .label{font-size:10.5px;letter-spacing:0.1em;color:var(--gold-dark);}
+  .pot-row .amount{font-size:19px;color:var(--gold-dark);font-weight:800;}
+
+  .conn-row{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-faint);margin-bottom:12px;font-weight:600;letter-spacing:0.02em;}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--green-ok);flex:none;box-shadow:0 0 0 3px rgba(47,122,79,0.15);}
+  .conn-dot.off{background:var(--red);box-shadow:0 0 0 3px rgba(166,61,47,0.15);}
+
+  .player-card{background:#fff;border:1px solid var(--line);border-left:5px solid var(--gold);border-radius:12px;padding:13px 15px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:var(--shadow-sm);transition:box-shadow 0.15s ease;}
+  .player-card.debt{border-left-color:var(--red);}
+  .player-info{display:flex;align-items:center;gap:11px;min-width:0;}
+  .token{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none;background:var(--paper-dark);border:1px solid var(--line);box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);}
+  .player-name{font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink);}
+  .player-tag{font-size:9px;color:var(--green-ok);letter-spacing:0.05em;margin-top:2px;font-weight:600;}
+  .player-balance{font-size:19px;font-weight:800;text-align:right;flex:none;transition:transform 0.18s ease, color 0.18s ease;letter-spacing:-0.01em;}
+  .player-card.debt .player-balance{color:var(--red);}
+  .flip{animation:flip-pulse 0.35s ease;}
+  @keyframes flip-pulse{0%{transform:scale(1);}35%{transform:scale(1.18) rotateX(25deg);color:var(--gold-dark);}100%{transform:scale(1);}}
+  .debt-badge{display:inline-block;font-size:8.5px;background:var(--red);color:#fff;padding:2px 6px;border-radius:4px;letter-spacing:0.06em;margin-top:2px;font-weight:700;}
+
+  .section-label{font-size:10.5px;letter-spacing:0.15em;color:var(--ink-faint);margin:22px 0 9px 2px;display:flex;justify-content:space-between;align-items:center;font-weight:700;}
+  .empty-hint{text-align:center;color:var(--ink-faint);font-size:13px;padding:34px 10px;}
+
+  .ticket{background:#fff;border:1.5px dashed var(--line);border-radius:10px;padding:10px 13px;margin-bottom:8px;font-size:12.5px;box-shadow:var(--shadow-sm);}
+  .ticket .row1{display:flex;justify-content:space-between;font-weight:700;color:var(--ink);}
+  .ticket .row2{color:var(--ink-faint);font-size:11px;margin-top:3px;font-weight:600;}
+
+  .action-bar{position:fixed;left:0;right:0;bottom:0;background:var(--felt-dark);padding:11px 12px calc(11px + env(safe-area-inset-bottom));display:flex;gap:8px;box-shadow:0 -3px 16px rgba(0,0,0,0.35);border-top:1px solid rgba(255,255,255,0.06);}
+  .action-bar button{flex:1;border:none;border-radius:12px;padding:12px 4px;font-size:10.5px;font-weight:700;letter-spacing:0.02em;display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .btn-primary{background:linear-gradient(180deg,var(--gold-light),var(--gold));color:var(--felt-dark);box-shadow:0 2px 8px rgba(184,145,47,0.4);}
+  .btn-secondary{background:rgba(244,236,216,0.09);color:var(--paper);}
+  .action-bar button .ico{font-size:17px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(10,20,15,0.6);display:none;align-items:flex-end;z-index:50;backdrop-filter:blur(1px);}
+  .overlay.show{display:flex;}
+  .sheet{background:var(--paper);width:100%;max-height:88vh;overflow-y:auto;border-radius:22px 22px 0 0;padding:20px 18px calc(24px + env(safe-area-inset-bottom));animation:slide-up 0.24s cubic-bezier(.2,.8,.3,1);box-shadow:0 -8px 30px rgba(0,0,0,0.3);}
+  @keyframes slide-up{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .sheet h2{margin:0 0 14px;font-size:15.5px;color:var(--felt);}
+  .sheet .close-x{float:right;background:rgba(0,0,0,0.05);border:none;font-size:16px;color:var(--ink-soft);width:28px;height:28px;border-radius:50%;}
+  label{display:block;font-size:10.5px;letter-spacing:0.07em;color:var(--ink-faint);margin:13px 0 6px;font-weight:700;text-transform:uppercase;}
+  input[type=text],input[type=number],select{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;font-size:15px;background:#fff;color:var(--ink);font-family:inherit;transition:border-color 0.15s ease;}
+  input[type=text]:focus,input[type=number]:focus{outline:none;border-color:var(--gold-dark);}
+  input[type=number]{font-family:"Courier New",monospace;}
+  .token-pick{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  .token-pick button{width:39px;height:39px;border-radius:50%;border:2px solid transparent;background:var(--paper-dark);font-size:17px;}
+  .token-pick button.sel{border-color:var(--gold-dark);background:#fff;box-shadow:var(--shadow-sm);}
+  .quick-amounts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+  .quick-amounts button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;font-size:12px;font-family:"Courier New",monospace;font-weight:700;color:var(--ink-soft);}
+  .sheet-actions{display:flex;gap:10px;margin-top:22px;}
+  .sheet-actions button{flex:1;padding:14px;border:none;border-radius:12px;font-size:14px;font-weight:700;}
+  .btn-confirm{background:linear-gradient(180deg,var(--felt),var(--felt-dark));color:var(--paper);box-shadow:var(--shadow-md);}
+  .btn-cancel{background:var(--paper-dark);color:var(--ink);}
+  .btn-danger{background:linear-gradient(180deg,#B8493A,var(--red));color:#fff;box-shadow:var(--shadow-md);}
+
+  .player-list-pick{display:flex;flex-direction:column;gap:7px;margin-top:5px;}
+  .pick-row{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;transition:all 0.12s ease;}
+  .pick-row.sel{border-color:var(--gold-dark);background:#FFF7E5;box-shadow:var(--shadow-sm);}
+  .pick-row .name{flex:1;font-size:13.5px;font-weight:700;}
+  .pick-row .bal{font-size:12px;color:var(--ink-soft);font-family:"Courier New",monospace;font-weight:600;}
+  .divider-or{text-align:center;font-size:9.5px;color:var(--ink-faint);letter-spacing:0.12em;margin:11px 0;font-weight:700;}
+
+  .toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);background:var(--felt-dark);color:var(--paper);padding:11px 20px;border-radius:22px;font-size:12.5px;font-weight:600;opacity:0;transition:all 0.25s ease;z-index:80;pointer-events:none;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 20px rgba(0,0,0,0.35);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .flow-screen{flex:1;display:flex;flex-direction:column;background:var(--paper);border-radius:22px 22px 0 0;padding:28px 20px 32px;margin-top:10px;overflow-y:auto;box-shadow:var(--shadow-lg);}
+  .flow-screen h1{font-family:Georgia,serif;font-size:22px;letter-spacing:0.01em;margin:8px 0 5px;color:var(--felt);}
+  .flow-screen .sub{font-size:12.5px;color:var(--ink-soft);margin-bottom:22px;line-height:1.55;}
+  .big-choice{border:none;border-radius:14px;padding:19px;text-align:left;margin-bottom:12px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow-md);}
+  .big-choice .emo{font-size:27px;flex:none;}
+  .big-choice .txt b{display:block;font-size:14.5px;margin-bottom:2px;}
+  .big-choice .txt span{font-size:11.5px;opacity:0.75;line-height:1.4;}
+  .choice-new{background:linear-gradient(135deg,var(--felt),var(--felt-dark));color:var(--paper);}
+  .choice-join{background:#fff;color:var(--ink);border:1px solid var(--line);}
+
+  .setup-player-row{display:flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:8px;}
+  .setup-player-row input{flex:1;border:none;font-size:14px;padding:4px;background:transparent;font-weight:600;}
+  .setup-player-row input:focus{outline:none;}
+  .setup-player-row .rm{background:none;border:none;color:var(--red);font-size:18px;padding:0 4px;}
+  .add-player-btn{border:1.5px dashed var(--gold-dark);background:none;color:var(--gold-dark);border-radius:10px;padding:11px;font-size:13px;font-weight:700;margin-bottom:6px;width:100%;}
+  .setup-grid{display:flex;gap:10px;}
+  .setup-grid > div{flex:1;}
+  .start-btn{margin-top:22px;background:linear-gradient(180deg,var(--felt),var(--felt-dark));color:var(--paper);border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:700;letter-spacing:0.03em;width:100%;box-shadow:var(--shadow-md);}
+  .back-link{background:none;border:none;color:var(--ink-faint);font-size:12.5px;margin-bottom:16px;text-align:left;padding:0;font-weight:600;}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 2px;gap:12px;}
+  .switch{width:44px;height:26px;border-radius:13px;background:var(--paper-dark);border:1.5px solid var(--line);position:relative;flex:none;transition:background 0.15s ease;}
+  .switch.on{background:var(--gold);border-color:var(--gold-dark);}
+  .switch .knob{position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:#fff;transition:left 0.15s ease;box-shadow:0 1px 3px rgba(0,0,0,0.35);}
+  .switch.on .knob{left:20px;}
+  .code-display{background:linear-gradient(135deg,var(--felt),var(--felt-dark));color:var(--paper);text-align:center;padding:18px;border-radius:14px;margin:14px 0;box-shadow:var(--shadow-md);}
+  .code-display .num{font-family:"Courier New",monospace;font-size:32px;letter-spacing:0.16em;font-weight:800;color:var(--gold-light);}
+  .code-display .lbl{font-size:10px;letter-spacing:0.12em;opacity:0.8;margin-bottom:5px;font-weight:600;}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,0.15);border-top-color:var(--gold-dark);border-radius:50%;animation:spin 0.7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .search-box{position:relative;margin-bottom:11px;}
+  .search-box input{padding-left:36px;}
+  .search-box .sico{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;opacity:0.45;}
+  .asset-row{display:flex;align-items:center;gap:11px;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;background:#fff;transition:all 0.12s ease;}
+  .aico{width:44px;height:44px;border-radius:10px;background:var(--paper-dark);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,0.06);}
+  .aico img{width:100%;height:100%;object-fit:cover;display:block;}
+  .asset-row .ainfo{flex:1;min-width:0;}
+  .asset-row .aname{font-size:13.5px;font-weight:700;}
+  .asset-row .aowner{font-size:10.5px;color:var(--ink-faint);margin-top:2px;font-weight:600;}
+  .asset-row .aowner.owned{color:var(--gold-dark);font-weight:700;}
+  .asset-row .aprice{font-size:13px;font-family:"Courier New",monospace;font-weight:800;flex:none;text-align:right;}
+</style>
+</head>
+<body>
+
+<div id="landingScreen" class="flow-screen">
+  <h1>📒 Buku Kas Bank</h1>
+  <div class="sub">Bankir digital buat Monopoli, saldo kesinkron real-time ke semua HP pemain.</div>
+  <button class="big-choice choice-new" onclick="showScreen('setupScreen')">
+    <span class="emo">🆕</span>
+    <span class="txt"><b>Buat Permainan Baru</b><span>Lo jadi host, bisa mulai sendirian dulu</span></span>
+  </button>
+  <button class="big-choice choice-join" onclick="showScreen('joinScreen')">
+    <span class="emo">🔗</span>
+    <span class="txt"><b>Gabung Permainan</b><span>Masukin kode dari temen yang udah bikin duluan</span></span>
+  </button>
+</div>
+
+<div id="joinScreen" class="flow-screen" style="display:none;">
+  <button class="back-link" onclick="showScreen('landingScreen')">‹ Kembali</button>
+  <h1>🔗 Gabung Permainan</h1>
+
+  <div id="joinStep1">
+    <div class="sub">Minta kode sesi ke yang bikin permainan.</div>
+    <label style="margin-top:0;">Kode Sesi</label>
+    <input type="text" id="joinCodeInput" placeholder="cth. 4821" maxlength="6" inputmode="numeric" style="font-size:22px;letter-spacing:0.15em;text-align:center;font-family:'Courier New',monospace;">
+    <button class="start-btn" id="joinBtn" onclick="checkJoinCode()">Cek Kode</button>
+  </div>
+
+  <div id="joinStep2" style="display:none;">
+    <div class="sub" id="joinFoundInfo"></div>
+    <label style="margin-top:0;">Nama Kamu</label>
+    <input type="text" id="joinName" placeholder="Nama kamu">
+    <label>Token</label>
+    <div class="token-pick" id="joinTokenPick"></div>
+    <button class="start-btn" id="joinConfirmBtn" onclick="doJoinAsPlayer()">Gabung sebagai Pemain</button>
+  </div>
+</div>
+
+<div id="setupScreen" class="flow-screen" style="display:none;">
+  <button class="back-link" onclick="showScreen('landingScreen')">‹ Kembali</button>
+  <h1>🆕 Buat Permainan</h1>
+  <div class="sub">Isi nama kamu dulu (pemain lain bisa nyusul gabung pake kode nanti).</div>
+
+  <label style="margin-top:0;">Pemain</label>
+  <div id="setupPlayerList"></div>
+  <button class="add-player-btn" onclick="addSetupPlayer()">+ Tambah Pemain Lain</button>
+
+  <div class="setup-grid">
+    <div>
+      <label>Saldo Awal</label>
+      <input type="number" id="startBalance" value="1500" inputmode="numeric">
+    </div>
+    <div>
+      <label>Gaji Lewat GO</label>
+      <input type="number" id="goSalary" value="200" inputmode="numeric">
+    </div>
+  </div>
+  <label>Simbol Mata Uang</label>
+  <input type="text" id="currencySymbol" value="Rp" maxlength="4">
+
+  <div class="toggle-row">
+    <div>
+      <div style="font-size:13.5px;font-weight:600;">Kas Parkir Bebas</div>
+      <div style="font-size:11px;color:var(--ink-soft);">Uang denda/pajak masuk pot, diambil siapa singgah di Parkir Bebas</div>
+    </div>
+    <div class="switch" id="potToggle" onclick="togglePot()"><div class="knob"></div></div>
+  </div>
+
+  <button class="start-btn" id="startBtn" onclick="startGame()">Buat &amp; Mulai</button>
+</div>
+
+<div id="gameScreen" style="display:none;flex-direction:column;flex:1;">
+  <header>
+    <div class="title stamp">Buku Kas Bank<small id="playerCountLabel">0 pemain</small></div>
+    <div class="btns">
+      <div class="code-chip" id="codeChip" onclick="copyRoomCode()">···</div>
+      <button class="icon-btn" onclick="openHistory()">🧾</button>
+    </div>
+  </header>
+  <main>
+    <div class="conn-row"><div class="conn-dot" id="connDot"></div><span id="connLabel">Tersambung</span></div>
+    <div class="pot-row" id="potRow" style="display:none;">
+      <div class="label stamp">Kas Parkir Bebas</div>
+      <div class="amount mono" id="potAmount">Rp0</div>
+    </div>
+
+    <div class="section-label stamp">Saldo Pemain</div>
+    <div id="playerList"></div>
+  </main>
+
+  <div class="action-bar">
+    <button class="btn-primary" onclick="openTransfer()"><span class="ico">💸</span>Transfer</button>
+    <button class="btn-secondary" onclick="openAssetMarket()"><span class="ico">🗺️</span>Aset</button>
+    <button class="btn-secondary" onclick="openGoSalary()"><span class="ico">🏁</span>Lewat GO</button>
+    <button class="btn-secondary" onclick="openMenu()"><span class="ico">⋯</span>Menu</button>
+  </div>
+</div>
+
+<div class="overlay" id="transferOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('transferOverlay')">✕</button>
+    <h2 class="stamp">Transfer Uang</h2>
+    <label>Dari</label>
+    <div class="player-list-pick" id="fromPickList"></div>
+    <div class="divider-or">▼ KE ▼</div>
+    <label style="margin-top:2px;">Ke</label>
+    <div class="player-list-pick" id="toPickList"></div>
+    <div id="potCheckboxRow" style="display:none;align-items:center;gap:8px;margin-top:14px;">
+      <input type="checkbox" id="toPotCheckbox" style="width:16px;height:16px;">
+      <label style="margin:0;font-size:12px;" for="toPotCheckbox">Masukkan ke Kas Parkir Bebas (pajak/denda)</label>
+    </div>
+    <label>Jumlah (<span id="currLabelT"></span>)</label>
+    <input type="number" id="transferAmount" inputmode="numeric" placeholder="0">
+    <div class="quick-amounts">
+      <button onclick="quickAmt(10)">+10</button>
+      <button onclick="quickAmt(50)">+50</button>
+      <button onclick="quickAmt(100)">+100</button>
+      <button onclick="quickAmt(500)">+500</button>
+      <button onclick="setAmt(0)">Hapus</button>
+    </div>
+    <label>Catatan (opsional)</label>
+    <input type="text" id="transferNote" placeholder="mis. Beli Hotel di Sudirman">
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('transferOverlay')">Batal</button>
+      <button class="btn-confirm" onclick="doTransfer()">Kirim</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="goOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('goOverlay')">✕</button>
+    <h2 class="stamp">Lewat GO</h2>
+    <label style="margin-top:0;">Pemain yang lewat GO</label>
+    <div class="player-list-pick" id="goPickList"></div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('goOverlay')">Batal</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="assetOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('assetOverlay')">✕</button>
+    <h2 class="stamp">Peta Aset</h2>
+    <div class="search-box">
+      <span class="sico">🔍</span>
+      <input type="text" id="assetSearch" placeholder="Cari aset... (mis. Jepang)" oninput="renderAssetList()">
+    </div>
+    <div id="assetList"></div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('assetOverlay')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="buyAssetOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('buyAssetOverlay')">✕</button>
+    <h2 class="stamp" id="buyAssetTitle">Beli Aset</h2>
+    <label style="margin-top:0;">Dibeli oleh</label>
+    <div class="player-list-pick" id="buyAssetPickList"></div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('buyAssetOverlay')">Batal</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="menuOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('menuOverlay')">✕</button>
+    <h2 class="stamp">Menu</h2>
+    <div class="code-display">
+      <div class="lbl">KODE SESI — BAGIKAN KE TEMEN</div>
+      <div class="num" id="menuCode">····</div>
+    </div>
+    <div class="sheet-actions" style="margin-top:8px;">
+      <button class="btn-cancel" onclick="closeOverlay('menuOverlay');openAddPlayerMidGame();">➕ Tambah Pemain (host)</button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-danger" onclick="closeOverlay('menuOverlay');confirmReset();">🔄 Reset Permainan</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="addPlayerOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('addPlayerOverlay')">✕</button>
+    <h2 class="stamp">Tambah Pemain</h2>
+    <label style="margin-top:0;">Nama</label>
+    <input type="text" id="newMidName" placeholder="Nama pemain">
+    <label>Token</label>
+    <div class="token-pick" id="midTokenPick"></div>
+    <label>Saldo Awal</label>
+    <input type="number" id="newMidBalance" inputmode="numeric">
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('addPlayerOverlay')">Batal</button>
+      <button class="btn-confirm" onclick="doAddPlayerMidGame()">Tambah</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="historyOverlay">
+  <div class="sheet">
+    <button class="close-x" onclick="closeOverlay('historyOverlay')">✕</button>
+    <h2 class="stamp">Riwayat Transaksi</h2>
+    <div id="historyList"></div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('historyOverlay')">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="resetOverlay">
+  <div class="sheet">
+    <h2 class="stamp">Mulai Ulang?</h2>
+    <p style="font-size:13px;color:var(--ink-soft);">Semua saldo, aset &amp; riwayat akan dihapus buat semua HP yang gabung. Aksi ini tidak bisa dibatalkan.</p>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeOverlay('resetOverlay')">Batal</button>
+      <button class="btn-danger" onclick="doReset()">Ya, Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase compat SDK dari cdnjs (bukan gstatic, biar gak keblokir CSP artifact) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.15.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.15.0/firebase-database-compat.min.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBy9f6-hnPhnmsIOGqcUYuf-1HzkUaxrLQ",
+  authDomain: "monopoly-da2a2.firebaseapp.com",
+  databaseURL: "https://monopoly-da2a2-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "monopoly-da2a2",
+  storageBucket: "monopoly-da2a2.firebasestorage.app",
+  messagingSenderId: "731730838134",
+  appId: "1:731730838134:web:05839c4e7605e407ae1557"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ================= DATA ASET (icon = fallback teks, wiki = judul artikel buat ambil foto asli) ================= */
+const ASSET_DEFS = [
+  {name:'Indonesia', icon:'🌋', wiki:'Borobudur', price:6000},
+  {name:'Malaysia', icon:'🕌', wiki:'Petronas Towers', price:6000},
+  {name:'Singapura', icon:'🦁', wiki:'Merlion', price:10000},
+  {name:'Hong Kong', icon:'🏙️', wiki:'Victoria Harbour', price:10000},
+  {name:'Taiwan', icon:'🗼', wiki:'Taipei 101', price:12000},
+  {name:'Filipina', icon:'🏝️', wiki:'Chocolate Hills', price:14000},
+  {name:'Thailand', icon:'🐘', wiki:'Wat Arun', price:14000},
+  {name:'Vietnam', icon:'⛵', wiki:'Ha Long Bay', price:16000},
+  {name:'Perusahaan Listrik', icon:'⚡', wiki:'Electricity pylon', price:15000},
+  {name:'Changi Airport', icon:'✈️', wiki:'Singapore Changi Airport', price:20000},
+  {name:'Terminal Bus Tokyo', icon:'🚌', wiki:'Shinjuku Station', price:20000},
+  {name:'Jepang', icon:'🗻', wiki:'Mount Fuji', price:18000},
+  {name:'Korea', icon:'🏯', wiki:'Gyeongbokgung', price:18000},
+  {name:'India', icon:'🕌', wiki:'Taj Mahal', price:20000},
+  {name:'Cina', icon:'🐉', wiki:'Great Wall of China', price:22000},
+  {name:'Uni Soviet', icon:'☭', wiki:"Saint Basil's Cathedral", price:22000},
+  {name:'Italia', icon:'🏛️', wiki:'Colosseum', price:24000},
+  {name:'Stasiun London', icon:'🚉', wiki:"King's Cross railway station", price:20000},
+  {name:'Inggris', icon:'🕰️', wiki:'Big Ben', price:26000},
+  {name:'Prancis', icon:'🗼', wiki:'Eiffel Tower', price:26000},
+  {name:'Perusahaan Air', icon:'💧', wiki:'Water tower', price:15000},
+  {name:'Belanda', icon:'🌷', wiki:'Kinderdijk', price:28000},
+  {name:'Kanada', icon:'🗼', wiki:'CN Tower', price:30000},
+  {name:'Amerika', icon:'🗽', wiki:'Statue of Liberty', price:30000},
+  {name:'Brasil', icon:'⛰️', wiki:'Christ the Redeemer (statue)', price:32000},
+  {name:'Pelabuhan Sydney', icon:'⚓', wiki:'Sydney Harbour', price:20000},
+  {name:'Australia', icon:'🏛️', wiki:'Sydney Opera House', price:35000},
+  {name:'Mesir', icon:'🔺', wiki:'Great Pyramid of Giza', price:40000},
+];
+const TOKENS = ['🎩','🐕','🚗','👞','🚢','🐈','⭐','🧵'];
+const landmarkImgCache = {}; // name -> url | null(gagal/belum ada)
+
+/* Fetch gambar landmark: 2 lapis (REST summary -> action API pageimages) + timeout, jalan paralel & non-blocking */
+function fetchWithTimeout(url, ms){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, {signal: ctrl.signal}).finally(() => clearTimeout(timer));
+}
+function tryRestSummary(title){
+  return fetchWithTimeout('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title), 6000)
+    .then(res => res.ok ? res.json() : Promise.reject(new Error('rest not ok')))
+    .then(data => (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null);
+}
+function tryPageImagesApi(title){
+  const url = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(title) +
+              '&prop=pageimages&format=json&pithumbsize=300&origin=*';
+  return fetchWithTimeout(url, 6000)
+    .then(res => res.ok ? res.json() : Promise.reject(new Error('api not ok')))
+    .then(data => {
+      const pages = data.query && data.query.pages;
+      if(!pages) return null;
+      const page = Object.values(pages)[0];
+      return (page && page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null;
+    });
+}
+function prefetchLandmarkImages(){
+  ASSET_DEFS.forEach(def => {
+    if(landmarkImgCache[def.name] !== undefined) return; // sudah ada/pernah dicoba
+    tryRestSummary(def.wiki)
+      .catch(() => tryPageImagesApi(def.wiki))
+      .catch(() => null)
+      .then(url => {
+        landmarkImgCache[def.name] = url || null;
+        if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
+      });
+  });
+}
+function assetIconHtml(a){
+  const url = landmarkImgCache[a.name];
+  if(url) return `<img src="${escapeHtml(url)}" alt="" onerror="this.parentElement.textContent='${a.icon}';">`;
+  return a.icon;
+}
+
+/* ================= STATE LOKAL =================
+   Struktur di server dipecah jadi beberapa cabang biar hemat data:
+   rooms/{code}/meta     -> pengaturan game (jarang berubah)
+   rooms/{code}/players  -> saldo pemain (sering berubah)
+   rooms/{code}/assets   -> kepemilikan aset (kadang berubah)
+   rooms/{code}/history  -> log transaksi (list append-only, diambil on-demand)
+   State lokal tetap 1 objek datar biar kode render gak perlu berubah banyak. */
+let state = null;
+let joinFoundState = null; // {code, players} - preview ringan sebelum join
+let tempSetupPlayers = [];
+let tempNextId = 1;
+
+function freshState(){
+  return {
+    roomCode: '', players: [], potEnabled: false, pot: 0, currency: 'Rp',
+    goSalary: 200, startBalance: 1500,
+    assets: ASSET_DEFS.map((a, i) => ({id:i, name:a.name, icon:a.icon, price:a.price, owner:null})),
+    nextId: 1, updatedAt: 0
+  };
+}
+function hydrateState(code, room){
+  const meta = room.meta || {};
+  return {
+    roomCode: code,
+    players: room.players || [],
+    assets: room.assets || ASSET_DEFS.map((a,i) => ({id:i, name:a.name, icon:a.icon, price:a.price, owner:null})),
+    potEnabled: !!meta.potEnabled,
+    pot: meta.pot || 0,
+    currency: meta.currency || 'Rp',
+    goSalary: meta.goSalary || 200,
+    startBalance: meta.startBalance || 1500,
+    nextId: meta.nextId || 1,
+    updatedAt: meta.updatedAt || 0
+  };
+}
+function genRoomCode(){ return String(Math.floor(1000 + Math.random()*9000)); }
+
+/* ================= FIREBASE: WRITE (tertarget per cabang, hindari kirim data yang gak perlu) ================= */
+async function createRoomOnServer(s){
+  const meta = {
+    currency: s.currency, goSalary: s.goSalary, startBalance: s.startBalance,
+    potEnabled: s.potEnabled, pot: s.pot, nextId: s.nextId, updatedAt: s.updatedAt
+  };
+  try{
+    await db.ref('rooms/' + s.roomCode).set({ meta, players: s.players, assets: s.assets });
+    pushHistory(s.roomCode, s.currency, 'Sesi dibuat', s.players.map(p => p.name).join(', '));
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal membuat sesi:', e);
+    showToast('⚠️ Gagal simpan sesi ke server, cek koneksi');
+    setConnStatus(false);
+  }
+}
+async function savePlayers(){
+  try{
+    await db.ref('rooms/' + state.roomCode + '/players').set(state.players);
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal simpan pemain:', e);
+    showToast('⚠️ Gagal sinkron ke server');
+    setConnStatus(false);
+  }
+}
+async function saveAssets(){
+  try{
+    await db.ref('rooms/' + state.roomCode + '/assets').set(state.assets);
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal simpan aset:', e);
+    showToast('⚠️ Gagal sinkron ke server');
+    setConnStatus(false);
+  }
+}
+async function saveMeta(){
+  state.updatedAt = Date.now();
+  try{
+    await db.ref('rooms/' + state.roomCode + '/meta').update({
+      pot: state.pot, potEnabled: state.potEnabled, currency: state.currency,
+      goSalary: state.goSalary, startBalance: state.startBalance, nextId: state.nextId,
+      updatedAt: state.updatedAt
+    });
+    setConnStatus(true);
+  }catch(e){
+    console.error('Gagal simpan meta:', e);
+    showToast('⚠️ Gagal sinkron ke server');
+    setConnStatus(false);
+  }
+}
+function pushHistory(roomCode, currency, text, sub){
+  // fire-and-forget: gak perlu ditunggu, dan gak ikut nge-bloat payload state utama
+  db.ref('rooms/' + roomCode + '/history').push({text, sub, ts: new Date().toISOString()})
+    .catch(e => console.error('Gagal simpan riwayat:', e));
+}
+
+/* ================= FIREBASE: LISTENER (dipecah per cabang biar gak re-render/re-transmit yang gak perlu) ================= */
+let metaRef = null, playersRef = null, assetsRef = null;
+let lastPlayersJson = null, lastAssetsJson = null;
+
+function subscribeRoom(){
+  unsubscribeRoom();
+  const code = state.roomCode;
+
+  metaRef = db.ref('rooms/' + code + '/meta');
+  metaRef.on('value', snap => {
+    setConnStatus(true);
+    if(!snap.exists()) return;
+    const meta = snap.val();
+    if(meta.updatedAt === state.updatedAt) return; // data sama persis (gema tulisan sendiri) -> skip render
+    state.potEnabled = !!meta.potEnabled;
+    state.pot = meta.pot || 0;
+    state.currency = meta.currency || 'Rp';
+    state.goSalary = meta.goSalary || 200;
+    state.startBalance = meta.startBalance || 1500;
+    state.nextId = meta.nextId || state.nextId;
+    state.updatedAt = meta.updatedAt || state.updatedAt;
+    renderMetaUI();
+  }, err => { console.error('Meta listener error:', err); setConnStatus(false); });
+
+  playersRef = db.ref('rooms/' + code + '/players');
+  playersRef.on('value', snap => {
+    setConnStatus(true);
+    const val = snap.val() || [];
+    const json = JSON.stringify(val);
+    if(json === lastPlayersJson) return; // persis sama kayak yang barusan kita tulis -> skip render
+    lastPlayersJson = json;
+    state.players = val;
+    renderPlayerListUI();
+  }, err => { console.error('Players listener error:', err); setConnStatus(false); });
+
+  assetsRef = db.ref('rooms/' + code + '/assets');
+  assetsRef.on('value', snap => {
+    setConnStatus(true);
+    if(!snap.exists()) return;
+    const val = snap.val();
+    const json = JSON.stringify(val);
+    if(json === lastAssetsJson) return;
+    lastAssetsJson = json;
+    state.assets = val;
+    if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
+  }, err => { console.error('Assets listener error:', err); setConnStatus(false); });
+}
+function unsubscribeRoom(){
+  if(metaRef){ metaRef.off(); metaRef = null; }
+  if(playersRef){ playersRef.off(); playersRef = null; }
+  if(assetsRef){ assetsRef.off(); assetsRef = null; }
+  lastPlayersJson = null;
+  lastAssetsJson = null;
+}
+function setConnStatus(ok){
+  const dot = document.getElementById('connDot');
+  const lbl = document.getElementById('connLabel');
+  if(!dot) return;
+  dot.classList.toggle('off', !ok);
+  lbl.textContent = ok ? 'Tersambung' : 'Terputus — cek internet';
+}
+
+/* ================= SCREEN NAV ================= */
+function showScreen(id){
+  ['landingScreen','joinScreen','setupScreen'].forEach(s => {
+    document.getElementById(s).style.display = (s === id) ? 'flex' : 'none';
+  });
+  if(id === 'joinScreen'){
+    document.getElementById('joinStep1').style.display = 'block';
+    document.getElementById('joinStep2').style.display = 'none';
+    document.getElementById('joinCodeInput').value = '';
+    document.getElementById('joinName').value = '';
+  }
+}
+
+/* ================= JOIN FLOW ================= */
+async function checkJoinCode(){
+  const code = document.getElementById('joinCodeInput').value.trim();
+  if(!code){ showToast('Isi kode sesi dulu'); return; }
+  const btn = document.getElementById('joinBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Mencari...';
+
+  let found = false, players = [];
+  try{
+    const metaSnap = await db.ref('rooms/' + code + '/meta').once('value');
+    if(metaSnap.exists()){
+      found = true;
+      const playersSnap = await db.ref('rooms/' + code + '/players').once('value');
+      players = playersSnap.val() || [];
+    }
+  }catch(e){ console.error('Gagal cek kode:', e); }
+
+  btn.disabled = false;
+  btn.textContent = 'Cek Kode';
+  if(!found){ showToast('Kode tidak ketemu, cek lagi'); return; }
+  joinFoundState = { code, players };
+  document.getElementById('joinFoundInfo').textContent = 'Sesi ditemukan · ' + players.length + ' pemain udah gabung';
+  renderJoinTokenPick();
+  document.getElementById('joinStep1').style.display = 'none';
+  document.getElementById('joinStep2').style.display = 'block';
+}
+function renderJoinTokenPick(){
+  const wrap = document.getElementById('joinTokenPick');
+  wrap.innerHTML = '';
+  let picked = TOKENS.find(t => !joinFoundState.players.some(p => p.token === t)) || TOKENS[0];
+  TOKENS.forEach(t => {
+    const b = document.createElement('button');
+    b.textContent = t;
+    if(t === picked) b.classList.add('sel');
+    b.onclick = () => {
+      wrap.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      picked = t;
+    };
+    wrap.appendChild(b);
+  });
+  wrap._getPicked = () => picked;
+}
+async function doJoinAsPlayer(){
+  const name = document.getElementById('joinName').value.trim();
+  if(!name){ showToast('Isi nama kamu dulu'); return; }
+  const token = document.getElementById('joinTokenPick')._getPicked();
+  const code = joinFoundState.code;
+  const btn = document.getElementById('joinConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Bergabung...';
+
+  let addedPlayer = null, aborted = false;
+  try{
+    const result = await db.ref('rooms/' + code).transaction(current => {
+      if(!current) return current;
+      current.players = current.players || [];
+      if(current.players.length >= 8){ aborted = true; return; }
+      current.meta = current.meta || {};
+      const newId = current.meta.nextId || 1;
+      addedPlayer = {id:newId, name, token, balance: current.meta.startBalance || 1500};
+      current.players.push(addedPlayer);
+      current.meta.nextId = newId + 1;
+      current.meta.updatedAt = Date.now();
+      return current;
+    });
+    btn.disabled = false;
+    btn.textContent = 'Gabung sebagai Pemain';
+    if(aborted){ showToast('Sesi sudah penuh (maks 8 pemain)'); return; }
+    if(!result.committed || !result.snapshot.exists()){ showToast('Gagal gabung, coba lagi'); return; }
+    state = hydrateState(code, result.snapshot.val());
+  }catch(e){
+    console.error('Gagal gabung:', e);
+    btn.disabled = false;
+    btn.textContent = 'Gabung sebagai Pemain';
+    showToast('Gagal gabung, cek koneksi');
+    return;
+  }
+  lastPlayersJson = JSON.stringify(state.players); // biar listener gak render ulang pas gema balik
+  pushHistory(code, state.currency, 'Bank → ' + name, fmt(addedPlayer.balance) + ' · Gabung permainan');
+  enterGameScreen();
+  showToast('Berhasil gabung sebagai ' + name, true);
+}
+
+/* ================= SETUP FLOW (buat baru) ================= */
+function renderSetupPlayers(){
+  const wrap = document.getElementById('setupPlayerList');
+  wrap.innerHTML = '';
+  tempSetupPlayers.forEach((p) => wrap.appendChild(buildSetupPlayerRow(p)));
+}
+function buildSetupPlayerRow(p){
+  const row = document.createElement('div');
+  row.className = 'setup-player-row';
+  row.dataset.id = p.id;
+  row.innerHTML = `
+    <div class="token" style="width:30px;height:30px;font-size:14px;">${p.token}</div>
+    <input type="text" value="${escapeHtml(p.name)}" oninput="renameSetupPlayer(${p.id}, this.value)" placeholder="Nama pemain">
+    <button class="rm" onclick="removeSetupPlayer(${p.id})">✕</button>
+  `;
+  return row;
+}
+function addSetupPlayer(){
+  if(tempSetupPlayers.length >= 8){ showToast('Maksimal 8 pemain'); return; }
+  const token = TOKENS[tempSetupPlayers.length % TOKENS.length];
+  const p = {id: tempNextId++, name: '', token, balance: 0};
+  tempSetupPlayers.push(p);
+  document.getElementById('setupPlayerList').appendChild(buildSetupPlayerRow(p));
+}
+function renameSetupPlayer(id, val){
+  const p = tempSetupPlayers.find(p => p.id === id);
+  if(p) p.name = val;
+}
+function removeSetupPlayer(id){
+  tempSetupPlayers = tempSetupPlayers.filter(p => p.id !== id);
+  const row = document.querySelector('.setup-player-row[data-id="' + id + '"]');
+  if(row) row.remove();
+}
+function togglePot(){
+  document.getElementById('potToggle').classList.toggle('on');
+}
+
+/* Buat sesi: LANGSUNG masuk ke game (gak nunggu server), simpan ke Firebase di background */
+function startGame(){
+  if(tempSetupPlayers.length < 1){ showToast('Isi minimal nama kamu dulu'); return; }
+  if(tempSetupPlayers.some(p => !p.name.trim())){ showToast('Isi semua nama pemain dulu'); return; }
+
+  state = freshState();
+  state.roomCode = genRoomCode();
+  const startBal = parseInt(document.getElementById('startBalance').value) || 0;
+  state.startBalance = startBal;
+  state.goSalary = parseInt(document.getElementById('goSalary').value) || 200;
+  state.currency = (document.getElementById('currencySymbol').value || 'Rp').trim() || 'Rp';
+  state.potEnabled = document.getElementById('potToggle').classList.contains('on');
+  state.players = tempSetupPlayers.map(p => ({id: state.nextId++, name: p.name, token: p.token, balance: startBal}));
+  state.updatedAt = Date.now();
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
+
+  enterGameScreen();
+  showToast('Sesi dibuat! Bagikan kodenya ke temen', true);
+  createRoomOnServer(state); // fire-and-forget, gak diblok UI
+}
+
+/* ================= ENTER GAME ================= */
+function enterGameScreen(){
+  ['landingScreen','joinScreen','setupScreen'].forEach(s => document.getElementById(s).style.display = 'none');
+  document.getElementById('gameScreen').style.display = 'flex';
+  renderGame();
+  subscribeRoom();
+  prefetchLandmarkImages(); // paralel, non-blocking, gambar muncul bertahap
+}
+function copyRoomCode(){
+  const code = state.roomCode;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(code).then(() => showToast('Kode disalin: ' + code)).catch(() => showToast('Kode sesi: ' + code));
+  } else {
+    showToast('Kode sesi: ' + code);
+  }
+}
+
+/* ================= RENDER (dipecah: meta vs player list, biar gak render semua tiap ada 1 perubahan) ================= */
+function fmt(n){
+  const neg = n < 0;
+  const abs = Math.abs(n).toLocaleString('id-ID');
+  return (neg ? '-' : '') + state.currency + abs;
+}
+function renderMetaUI(){
+  document.getElementById('codeChip').textContent = '#' + state.roomCode;
+  document.getElementById('menuCode').textContent = state.roomCode;
+  document.getElementById('currLabelT').textContent = state.currency;
+  document.getElementById('potRow').style.display = state.potEnabled ? 'flex' : 'none';
+  document.getElementById('potAmount').textContent = fmt(state.pot);
+}
+function renderPlayerListUI(){
+  document.getElementById('playerCountLabel').textContent = state.players.length + ' pemain';
+  const list = document.getElementById('playerList');
+  if(state.players.length === 0){
+    list.innerHTML = '<div class="empty-hint">Belum ada pemain.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  state.players.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'player-card' + (p.balance < 0 ? ' debt' : '');
+    card.innerHTML = `
+      <div class="player-info">
+        <div class="token">${p.token}</div>
+        <div style="min-width:0;">
+          <div class="player-name">${escapeHtml(p.name)}</div>
+          ${p.balance < 0 ? '<span class="debt-badge">DEFISIT</span>' : '<div class="player-tag">Saldo aktif</div>'}
+        </div>
+      </div>
+      <div class="player-balance mono" id="bal-${p.id}">${fmt(p.balance)}</div>
+    `;
+    list.appendChild(card);
+  });
+}
+function renderGame(){
+  renderMetaUI();
+  renderPlayerListUI();
+  if(document.getElementById('assetOverlay').classList.contains('show')) renderAssetList();
+}
+function flipBalance(id){
+  const el = document.getElementById('bal-' + id);
+  if(!el) return;
+  el.classList.remove('flip');
+  void el.offsetWidth;
+  el.classList.add('flip');
+}
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ================= OVERLAY HELPERS ================= */
+function openOverlay(id){ document.getElementById(id).classList.add('show'); }
+function closeOverlay(id){ document.getElementById(id).classList.remove('show'); }
+function openMenu(){ openOverlay('menuOverlay'); }
+
+/* ================= TRANSFER ================= */
+let transferFrom = null, transferTo = null;
+function openTransfer(){
+  transferFrom = null; transferTo = null;
+  document.getElementById('transferAmount').value = '';
+  document.getElementById('transferNote').value = '';
+  renderPickList('fromPickList', true);
+  renderPickList('toPickList', false);
+  updatePotCheckboxVisibility();
+  openOverlay('transferOverlay');
+}
+function renderPickList(containerId, isFrom){
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = '';
+  const entries = [...state.players];
+  if(!isFrom) entries.unshift({id:'BANK', name:'Bank', token:'🏦', balance:null});
+  if(isFrom) entries.push({id:'BANK', name:'Bank', token:'🏦', balance:null});
+
+  entries.forEach(p => {
+    const row = document.createElement('div');
+    const selected = isFrom ? transferFrom === p.id : transferTo === p.id;
+    row.className = 'pick-row' + (selected ? ' sel' : '');
+    row.innerHTML = `
+      <div class="token" style="width:26px;height:26px;font-size:13px;">${p.token}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="bal">${p.balance === null ? '' : fmt(p.balance)}</div>
+    `;
+    row.onclick = () => {
+      if(isFrom) transferFrom = p.id; else transferTo = p.id;
+      renderPickList('fromPickList', true);
+      renderPickList('toPickList', false);
+      updatePotCheckboxVisibility();
+    };
+    wrap.appendChild(row);
+  });
+}
+function updatePotCheckboxVisibility(){
+  const row = document.getElementById('potCheckboxRow');
+  const show = state.potEnabled && transferTo === 'BANK';
+  row.style.display = show ? 'flex' : 'none';
+  if(!show) document.getElementById('toPotCheckbox').checked = false;
+}
+function quickAmt(v){
+  const inp = document.getElementById('transferAmount');
+  inp.value = (parseInt(inp.value)||0) + v;
+}
+function setAmt(v){ document.getElementById('transferAmount').value = v || ''; }
+
+async function doTransfer(){
+  const amount = parseInt(document.getElementById('transferAmount').value);
+  if(!transferFrom || !transferTo){ showToast('Pilih pengirim & penerima'); return; }
+  if(transferFrom === transferTo){ showToast('Pengirim & penerima tidak boleh sama'); return; }
+  if(!amount || amount <= 0){ showToast('Jumlah harus lebih dari 0'); return; }
+
+  const note = document.getElementById('transferNote').value.trim();
+  const fromP = transferFrom === 'BANK' ? null : state.players.find(p => p.id === transferFrom);
+  const toP = transferTo === 'BANK' ? null : state.players.find(p => p.id === transferTo);
+
+  if(fromP) fromP.balance -= amount;
+  if(toP) toP.balance += amount;
+  const toPot = transferTo === 'BANK' && state.potEnabled && document.getElementById('toPotCheckbox').checked;
+  if(toPot) state.pot += amount;
+
+  const fromName = fromP ? fromP.name : 'Bank';
+  const toName = toP ? toP.name : 'Bank';
+  pushHistory(state.roomCode, state.currency, `${fromName} → ${toName}`, fmt(amount) + (note ? ' · ' + note : ''));
+
+  if(fromP) flipBalance(fromP.id);
+  if(toP) flipBalance(toP.id);
+  lastPlayersJson = JSON.stringify(state.players);
+  renderPlayerListUI();
+  closeOverlay('transferOverlay');
+  showToast('Transfer berhasil', true);
+
+  const writes = [savePlayers()];
+  if(toPot) writes.push(saveMeta()); // meta cuma ditulis kalau pot beneran berubah
+  await Promise.all(writes);
+}
+
+/* ================= GO SALARY ================= */
+function openGoSalary(){
+  const wrap = document.getElementById('goPickList');
+  wrap.innerHTML = '';
+  state.players.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'pick-row';
+    row.innerHTML = `
+      <div class="token" style="width:26px;height:26px;font-size:13px;">${p.token}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="bal">${fmt(p.balance)}</div>
+    `;
+    row.onclick = () => { doGoSalaryFor(p.id); };
+    wrap.appendChild(row);
+  });
+  openOverlay('goOverlay');
+}
+async function doGoSalaryFor(id){
+  const p = state.players.find(p => p.id === id);
+  if(!p) return;
+  p.balance += state.goSalary;
+  pushHistory(state.roomCode, state.currency, 'Bank → ' + p.name, fmt(state.goSalary) + ' · Lewat GO');
+  flipBalance(p.id);
+  lastPlayersJson = JSON.stringify(state.players);
+  renderPlayerListUI();
+  closeOverlay('goOverlay');
+  showToast(p.name + ' dapat gaji GO', true);
+  await savePlayers();
+}
+
+/* ================= ASSET MARKET ================= */
+function openAssetMarket(){
+  document.getElementById('assetSearch').value = '';
+  renderAssetList();
+  openOverlay('assetOverlay');
+}
+function renderAssetList(){
+  const q = (document.getElementById('assetSearch').value || '').toLowerCase().trim();
+  const wrap = document.getElementById('assetList');
+  wrap.innerHTML = '';
+  const filtered = state.assets.filter(a => a.name.toLowerCase().includes(q));
+  if(filtered.length === 0){
+    wrap.innerHTML = '<div class="empty-hint">Aset tidak ketemu.</div>';
+    return;
+  }
+  filtered.forEach(a => {
+    const owner = a.owner ? state.players.find(p => p.id === a.owner) : null;
+    const row = document.createElement('div');
+    row.className = 'asset-row';
+    row.innerHTML = `
+      <div class="aico">${assetIconHtml(a)}</div>
+      <div class="ainfo">
+        <div class="aname">${escapeHtml(a.name)}</div>
+        <div class="aowner ${owner ? 'owned' : ''}">${owner ? 'Milik ' + escapeHtml(owner.name) : 'Milik Bank'}</div>
+      </div>
+      <div class="aprice mono">${fmt(a.price)}</div>
+    `;
+    row.onclick = () => { owner ? trySellAsset(a.id) : openBuyAsset(a.id); };
+    wrap.appendChild(row);
+  });
+}
+function openBuyAsset(assetId){
+  const asset = state.assets.find(a => a.id === assetId);
+  document.getElementById('buyAssetTitle').textContent = asset.icon + ' Beli ' + asset.name + ' — ' + fmt(asset.price);
+  const wrap = document.getElementById('buyAssetPickList');
+  wrap.innerHTML = '';
+  state.players.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'pick-row';
+    row.innerHTML = `
+      <div class="token" style="width:26px;height:26px;font-size:13px;">${p.token}</div>
+      <div class="name">${escapeHtml(p.name)}</div>
+      <div class="bal">${fmt(p.balance)}</div>
+    `;
+    row.onclick = () => doBuyAsset(assetId, p.id);
+    wrap.appendChild(row);
+  });
+  openOverlay('buyAssetOverlay');
+}
+async function doBuyAsset(assetId, playerId){
+  const asset = state.assets.find(a => a.id === assetId);
+  const p = state.players.find(p => p.id === playerId);
+  if(!asset || !p || asset.owner) return;
+  p.balance -= asset.price;
+  asset.owner = playerId;
+  pushHistory(state.roomCode, state.currency, p.name + ' beli ' + asset.icon + ' ' + asset.name, fmt(asset.price));
+  flipBalance(p.id);
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
+  renderPlayerListUI();
+  renderAssetList();
+  closeOverlay('buyAssetOverlay');
+  showToast(p.name + ' beli ' + asset.name, true);
+  await Promise.all([savePlayers(), saveAssets()]);
+}
+async function trySellAsset(assetId){
+  const asset = state.assets.find(a => a.id === assetId);
+  const owner = state.players.find(p => p.id === asset.owner);
+  if(!owner) return;
+  const ok = confirm(`Jual balik "${asset.name}" ke Bank seharga ${fmt(asset.price)}?`);
+  if(!ok) return;
+  owner.balance += asset.price;
+  asset.owner = null;
+  pushHistory(state.roomCode, state.currency, owner.name + ' jual ' + asset.icon + ' ' + asset.name + ' ke Bank', fmt(asset.price));
+  flipBalance(owner.id);
+  lastPlayersJson = JSON.stringify(state.players);
+  lastAssetsJson = JSON.stringify(state.assets);
+  renderPlayerListUI();
+  renderAssetList();
+  showToast('Aset dijual balik ke Bank', true);
+  await Promise.all([savePlayers(), saveAssets()]);
+}
+
+/* ================= ADD PLAYER MID GAME (host) ================= */
+function openAddPlayerMidGame(){
+  document.getElementById('newMidName').value = '';
+  document.getElementById('newMidBalance').value = state.startBalance || 1500;
+  const wrap = document.getElementById('midTokenPick');
+  wrap.innerHTML = '';
+  let picked = TOKENS.find(t => !state.players.some(p => p.token === t)) || TOKENS[0];
+  TOKENS.forEach(t => {
+    const b = document.createElement('button');
+    b.textContent = t;
+    if(t === picked) b.classList.add('sel');
+    b.onclick = () => {
+      wrap.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      picked = t;
+    };
+    wrap.appendChild(b);
+  });
+  wrap._getPicked = () => picked;
+  openOverlay('addPlayerOverlay');
+}
+async function doAddPlayerMidGame(){
+  const name = document.getElementById('newMidName').value.trim();
+  const balance = parseInt(document.getElementById('newMidBalance').value) || 0;
+  if(!name){ showToast('Isi nama pemain'); return; }
+  const wrap = document.getElementById('midTokenPick');
+  const token = wrap._getPicked ? wrap._getPicked() : TOKENS[0];
+  const code = state.roomCode;
+
+  let aborted = false;
+  try{
+    const result = await db.ref('rooms/' + code).transaction(current => {
+      if(!current) return current;
+      current.players = current.players || [];
+      if(current.players.length >= 8){ aborted = true; return; }
+      current.meta = current.meta || {};
+      const newId = current.meta.nextId || 1;
+      current.players.push({id:newId, name, token, balance});
+      current.meta.nextId = newId + 1;
+      current.meta.updatedAt = Date.now();
+      return current;
+    });
+    if(aborted){ showToast('Maksimal 8 pemain'); return; }
+    if(!result.committed || !result.snapshot.exists()){ showToast('Gagal tambah pemain, coba lagi'); return; }
+    const room = result.snapshot.val();
+    state.players = room.players || [];
+    state.nextId = (room.meta && room.meta.nextId) || state.nextId;
+    state.updatedAt = (room.meta && room.meta.updatedAt) || state.updatedAt;
+    lastPlayersJson = JSON.stringify(state.players);
+  }catch(e){
+    console.error('Gagal tambah pemain:', e);
+    showToast('Gagal tambah pemain, cek koneksi');
+    return;
+  }
+  pushHistory(code, state.currency, 'Bank → ' + name, fmt(balance) + ' · Gabung permainan');
+  renderPlayerListUI();
+  closeOverlay('addPlayerOverlay');
+  showToast(name + ' bergabung', true);
+}
+
+/* ================= HISTORY (diambil on-demand pas drawer dibuka, gak disinkron terus-terusan) ================= */
+async function openHistory(){
+  const wrap = document.getElementById('historyList');
+  wrap.innerHTML = '<div class="empty-hint">Memuat riwayat...</div>';
+  openOverlay('historyOverlay');
+  if(!state || !state.roomCode) return;
+  try{
+    const snap = await db.ref('rooms/' + state.roomCode + '/history').limitToLast(50).once('value');
+    const entries = [];
+    snap.forEach(child => { entries.push(child.val()); });
+    entries.reverse();
+    if(entries.length === 0){
+      wrap.innerHTML = '<div class="empty-hint">Belum ada transaksi.</div>';
+      return;
+    }
+    wrap.innerHTML = '';
+    entries.forEach(h => {
+      const t = document.createElement('div');
+      t.className = 'ticket';
+      const time = new Date(h.ts).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+      t.innerHTML = `<div class="row1"><span>${escapeHtml(h.text)}</span><span>${time}</span></div><div class="row2">${escapeHtml(h.sub)}</div>`;
+      wrap.appendChild(t);
+    });
+  }catch(e){
+    console.error('Gagal ambil riwayat:', e);
+    wrap.innerHTML = '<div class="empty-hint">Gagal memuat riwayat, cek koneksi.</div>';
+  }
+}
+
+/* ================= RESET ================= */
+function confirmReset(){ openOverlay('resetOverlay'); }
+async function doReset(){
+  const code = state.roomCode;
+  unsubscribeRoom();
+  state = null;
+  tempSetupPlayers = [];
+  tempNextId = 1;
+  closeOverlay('resetOverlay');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('startBalance').value = 1500;
+  document.getElementById('goSalary').value = 200;
+  document.getElementById('currencySymbol').value = 'Rp';
+  document.getElementById('potToggle').classList.remove('on');
+  addSetupPlayer();
+  showScreen('landingScreen');
+  try{ await db.ref('rooms/' + code).remove(); }catch(e){ console.error(e); }
+}
+
+/* ================= TOAST ================= */
+let toastTimer = null;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ================= INIT ================= */
+addSetupPlayer();
+</script>
+</body>
+</html>
